@@ -8,7 +8,7 @@
  *
  * This file contains the following configurations:
  *
- * * Database settings
+ * * MySQL settings
  * * Secret keys
  * * Database table prefix
  * * ABSPATH
@@ -25,29 +25,29 @@
 
 // a helper function to lookup "env_FILE", "env", then fallback
 if (!function_exists('getenv_docker')) {
-	// https://github.com/docker-library/wordpress/issues/588 (WP-CLI will load this file 2x)
-	function getenv_docker($env, $default) {
-		if ($fileEnv = getenv($env . '_FILE')) {
-			return rtrim(file_get_contents($fileEnv), "\r\n");
-		}
-		else if (($val = getenv($env)) !== false) {
-			return $val;
-		}
-		else {
-			return $default;
-		}
+    // https://github.com/docker-library/wordpress/issues/588 (WP-CLI will load this file 2x)
+    function getenv_docker($env, $default) {
+	if ($fileEnv = getenv($env . '_FILE')) {
+	    return rtrim(file_get_contents($fileEnv), "\r\n");
 	}
+	else if (($val = getenv($env)) !== false) {
+	    return $val;
+	}
+	else {
+	    return $default;
+	}
+    }
 }
 
-// ** Database settings - You can get this info from your web host ** //
+// ** MySQL settings - You can get this info from your web host ** //
 /** The name of the database for WordPress */
 define( 'DB_NAME', getenv_docker('WORDPRESS_DB_NAME', 'wordpress') );
 
-/** Database username */
-define( 'DB_USER', getenv_docker('WORDPRESS_DB_USER', 'wordpress') );
+/** MySQL database username */
+define( 'DB_USER', getenv_docker('WORDPRESS_DB_USER', 'example username') );
 
-/** Database password */
-define( 'DB_PASSWORD', getenv_docker('WORDPRESS_DB_PASSWORD', 'wordpress') );
+/** MySQL database password */
+define( 'DB_PASSWORD', getenv_docker('WORDPRESS_DB_PASSWORD', 'example password') );
 
 /**
  * Docker image fallback values above are sourced from the official WordPress installation wizard:
@@ -55,7 +55,7 @@ define( 'DB_PASSWORD', getenv_docker('WORDPRESS_DB_PASSWORD', 'wordpress') );
  * (However, using "example username" and "example password" in your database is strongly discouraged.  Please use strong, random credentials!)
  */
 
-/** Database hostname */
+/** MySQL hostname */
 define( 'DB_HOST', getenv_docker('WORDPRESS_DB_HOST', 'mysql') );
 
 /** Database charset to use in creating database tables. */
@@ -112,21 +112,21 @@ define( 'WP_DEBUG', !!getenv_docker('WORDPRESS_DEBUG', '') );
 /* Add any custom values between this line and the "stop editing" line. */
 
 // If we're behind a proxy server and using HTTPS, we need to alert WordPress of that fact
-// see also https://wordpress.org/support/article/administration-over-ssl/#using-a-reverse-proxy
-if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strpos($_SERVER['HTTP_X_FORWARDED_PROTO'], 'https') !== false) {
-	$_SERVER['HTTPS'] = 'on';
+// see also http://codex.wordpress.org/Administration_Over_SSL#Using_a_Reverse_Proxy
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+    $_SERVER['HTTPS'] = 'on';
 }
 // (we include this by default because reverse proxying is extremely common in container environments)
 
 if ($configExtra = getenv_docker('WORDPRESS_CONFIG_EXTRA', '')) {
-	eval($configExtra);
+    eval($configExtra);
 }
 
 /* That's all, stop editing! Happy publishing. */
 
 /** Absolute path to the WordPress directory. */
 if ( ! defined( 'ABSPATH' ) ) {
-	define( 'ABSPATH', __DIR__ . '/' );
+    define( 'ABSPATH', __DIR__ . '/' );
 }
 
 /** Sets up WordPress vars and included files. */
