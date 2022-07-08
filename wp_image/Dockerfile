@@ -122,17 +122,22 @@ RUN set -eux; \
 	find /etc/apache2 -type f -name '*.conf' -exec sed -ri 's/([[:space:]]*LogFormat[[:space:]]+"[^"]*)%h([^"]*")/\1%a\2/g' '{}' +
 
 RUN set -eux; \
-	version='5.9.3'; \
+	version='6.0'; \
+	sha1='7a5a6d0591771e730b05c49d0c3fc134624d0491'; \
+	#version='5.9.3'; \
+	#sha1='cab576e112c45806c474b3cbe0d1263a2a879adf'; \
+	#version='5.9.2'; \
+	#sha1='19653440effafce0f768a1ba5092710717835bdc'; \
 	\
-	curl -o wordpress.tar.gz -fL "https://github.com/gusiner/project/tarball/main"; \
+	curl -o wordpress.tar.gz -fL "https://wordpress.org/wordpress-$version.tar.gz"; \
+	echo "$sha1 *wordpress.tar.gz" | sha1sum -c -; \
 	\
 # upstream tarballs include ./wordpress/ so this gives us /usr/src/wordpress
 	tar -xzf wordpress.tar.gz -C /usr/src/; \
-	mv /usr/src/Gusiner-* /usr/src/wordpress; \
 	rm wordpress.tar.gz; \
 	\
 # https://wordpress.org/support/article/htaccess/
-	[  -e /usr/src/wordpress/.htaccess ]; \
+	[ ! -e /usr/src/wordpress/.htaccess ]; \
 	{ \
 		echo '# BEGIN WordPress'; \
 		echo ''; \
@@ -147,21 +152,21 @@ RUN set -eux; \
 		echo '# END WordPress'; \
 	} > /usr/src/wordpress/.htaccess; \
 	\
-	chown -R www-data:www-data /usr/src/wordpress; 
+	chown -R www-data:www-data /usr/src/wordpress; \
 # pre-create wp-content (and single-level children) for folks who want to bind-mount themes, etc so permissions are pre-created properly instead of root:root
 # wp-content/cache: https://github.com/docker-library/wordpress/issues/534#issuecomment-705733507
-#	mkdir wp-content; \
-#	for dir in /usr/src/wordpress/wp-content/*/ cache; do \
-#		dir="$(basename "${dir%/}")"; \
-#		mkdir "wp-content/$dir"; \
-#	done; \
-#	chown -R www-data:www-data wp-content; \
-#	chmod -R 777 wp-content
+	mkdir wp-content; \
+	for dir in /usr/src/wordpress/wp-content/*/ cache; do \
+		dir="$(basename "${dir%/}")"; \
+		mkdir "wp-content/$dir"; \
+	done; \
+	chown -R www-data:www-data wp-content; \
+	chmod -R 777 wp-content
 
 VOLUME /var/www/html
 
-#COPY --chown=www-data:www-data wp-config-docker.php /usr/src/wordpress/
+COPY --chown=www-data:www-data wp-config-docker.php /usr/src/wordpress/
 COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["apache2-foreground"]
