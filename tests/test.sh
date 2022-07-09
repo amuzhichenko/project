@@ -13,7 +13,7 @@ case "$1" in
 
 cd /usr/src/wordpress/
 
-echo -e "####### Wordpress some files checking #######\n"
+echo -e "---------- Check wordpress files ----------\n"
 for var in ${files[@]}
 do
  if [[ -f $var ]]
@@ -23,7 +23,7 @@ do
  fi
 done
 
-echo -e "\n####### Apache2 installation checking #######\n"
+echo -e "\n---------- Apache2 installation checking ----------\n"
 for var in $(dpkg --get-selections | grep apache)
 do
  if [[ $var == *"install"* ]]
