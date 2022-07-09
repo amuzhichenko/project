@@ -3,7 +3,7 @@
 old_ifs="$IFS"
 IFS=$'\n'
 
-files=("wp-activate.php" "wp-config-docker.php" "wp-login.php" "wp-signup.php")
+files=("wp-activate.php" "wp-config-docker.php" "wp-login.php" "wp-signup.php" "admin.php")
 flag1=0
 flag2=0
 
