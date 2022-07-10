@@ -1,5 +1,8 @@
 #!/bin/bash
 
+old_ifs="$IFS"
+IFS=$'\n'
+
 files=("wp-activate.php" "wp-config-docker.php" "wp-login.php")
 flag1=0
 flag2=0
@@ -64,3 +67,4 @@ fi
 
 esac
 
+IFS="$old_ifs"
