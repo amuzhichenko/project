@@ -1,9 +1,6 @@
 #!/bin/bash
 
-old_ifs="$IFS"
-IFS=$'\n'
-
-files=("wp-activate.php" "wp-config-docker.php" "wp-login.php" "wp-signup.php")
+files=("wp-activate.php" "wp-config-docker.php" "wp-login.php")
 flag1=0
 flag2=0
 
@@ -23,17 +20,7 @@ do
  fi
 done
 
-echo -e "\n---------- Apache2 installation checking ----------\n"
-for var in $(dpkg --get-selections | grep apache)
-do
- if [[ $var == *"install"* ]]
-  then echo "$var --- OK"
-  else echo "$var --- Fail"
-       flag2=1
- fi
-done
-
-if [[ $flag1 == 0 && $flag2 == 0 ]]
+if [[ $flag1 == 0 ]]
  then echo -e "\n=== Test status: SUCCESSFUL ===\n"
  else echo -e "\n=== Test status: FAILED ===\n"
 fi
@@ -82,4 +69,3 @@ fi
 
 esac
 
-IFS="$old_ifs"
