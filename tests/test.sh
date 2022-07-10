@@ -23,6 +23,11 @@ do
  fi
 done
 
+if [[ $flag1 == 0 ]]
+ then echo -e "\n=== Test status: SUCCESSFUL ===\n"
+ else echo -e "\n=== Test status: FAILED ===\n"
+fi
+
 ;;
 
 "Deploy" )
