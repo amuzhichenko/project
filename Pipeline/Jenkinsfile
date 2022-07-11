@@ -1,0 +1,223 @@
+def stagestatus = [:]
+
+pipeline {
+  triggers { pollSCM 'H/5 * * * *' }
+  environment {
+    imagename = "amuzhichenko/project"
+    registry = "registry.hub.docker.com"
+    credential = 'dockerhub'
+
+  }
+  agent any
+
+  stages {
+
+    stage('Checkout Source') {
+      steps {
+        git url:'https://github.com/amuzhichenko/project.git', branch:'main'
+      }
+    }
+    
+    stage("Build image") {
+      steps {
+        script {
+          try {
+            myapp = docker.build("$imagename:${env.BUILD_ID}", "./wp_image/")
+            stagestatus.Docker_BUILD = "Success"
+          } catch (Exception err) {
+            stagestatus.Docker_BUILD = "Failure"
+            error "Something wrong with Dockerfile"
+          }
+        }
+      }
+    }
+    
+     stage('Test image') {
+          when { expression { stagestatus.find{ it.key == "Docker_BUILD" }?.value == "Success" } }
+          steps {
+            script {
+              myapp.inside("--entrypoint=''") { sh './tests/test.sh Image > image.log' }
+              archiveArtifacts artifacts: 'image.log'
+              catchError (buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                try {
+                  sh 'grep SUCCESSFUL image.log'
+                  stagestatus.Docker_TEST = "Success"
+                } catch (Exception err) {
+                  stagestatus.Docker_TEST = "Failure"
+                  error "Image test failed"
+                }
+              }
+            }
+          }
+   }
+    
+  stage('Test_YAML_syntax') {
+        steps {
+          script {
+            catchError (buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+              try {
+                sh 'kubeval --strict --schema-location https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/ ./wp.yaml > kubeval.log'
+                archiveArtifacts artifacts: 'kubeval.log'
+                stagestatus.Kubeval = "Success"
+              } catch (Exception err) {
+				        echo 'Yaml syntax is incorrect'
+                stagestatus.Kubeval = "Failure"
+                error "Yaml syntax is incorrect"
+              }
+            }
+          }
+        }
+    }  
+    
+    stage("Push image") {
+      steps {
+        script {
+          catchError (buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+            try {
+              docker.withRegistry('', credential ) {
+              myapp.push("${env.BUILD_ID}")
+              }
+              stagestatus.Docker_PUSH = "Success"
+            } catch (Exception err) {
+              stagestatus.Docker_PUSH = "Failure"
+              error "Image pushing error"
+              }
+          }
+        }
+      }
+    }
+    
+  stage("Clear images") {
+      when { expression { stagestatus.find{ it.key == "Docker_BUILD" }?.value == "Success" } }
+      steps {
+        script {
+          if ( stagestatus.find{ it.key == "Docker_PUSH" }?.value == "Success" ) {
+            sh "docker rmi $imagename:${env.BUILD_ID}"
+          }
+          else {
+            sh "docker rmi $imagename:${env.BUILD_ID}"
+          }
+        }
+      }
+    }  
+        
+    stage("Deploy/Upgrade") {
+      when { 
+        allOf {
+          expression { stagestatus.find{ it.key == "Docker_PUSH" }?.value == "Success" }
+          expression { stagestatus.find{ it.key == "Kubeval" }?.value == "Success" }
+        }
+      }
+      steps {
+        script {
+          catchError (buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+            try {
+              if (sh(returnStdout: true, script: 'kubectl get deployment wordpress --ignore-not-found --namespace default') == '') {
+                sh """
+                    sed -i "s|image_amuzhichenko|$imagename:${env.BUILD_ID}|g" dep/wp.yaml
+                    kubectl apply -f dep/wp.yaml --namespace=default
+                  """
+              }
+              else {
+                sh "kubectl scale --replicas=0 deployment/wordpress --namespace default"
+                sh "kubectl delete -l name=wp-pv-claim -f dep/wp.yaml --namespace default"
+                sh "kubectl apply -l name=wp-pv-claim -f dep/wp.yaml --namespace default"
+                sh "kubectl set image deployment/wordpress wordpress=$imagename:${env.BUILD_ID} --namespace default"
+                sh "kubectl scale --replicas=1 deployment/wordpress --namespace default"
+                stagestatus.Upgrade = "Success"
+              }
+              sleep 5
+              timeout(3) {
+                waitUntil {
+                  script {
+                    def status = sh(returnStdout: true, script: "kubectl get pods --namespace default --selector=tier=frontend --no-headers -o custom-columns=':status.phase'")
+                    if ( status =~ "Running") { return true }
+                    else { return false }
+                  }
+                }
+              }
+              stagestatus.Deploy = "Success"
+            } catch (Exception err) {
+                stagestatus.Deploy = "Failure"
+                stagestatus.Upgrade = "Failure"
+                error "Deployment/Upgrade failed"
+              }
+          }
+        }
+      }
+    }
+    
+     stage("Test Deployment") {
+      when { expression { stagestatus.find{ it.key == "Deploy" }?.value == "Success" } }
+      steps {
+        script {
+          sleep 85
+          catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') { 
+              if (stagestatus.find{ it.key == "Upgrade" }?.value == "Success") {
+                sh './tests/test.sh Upgrade > upgrade.log' 
+                archiveArtifacts artifacts: 'upgrade.log'                
+              }
+              else {
+                sh './tests/test.sh Deploy > deploy.log' 
+                archiveArtifacts artifacts: 'deploy.log'
+              }
+              try {
+                if (stagestatus.find{ it.key == "Upgrade" }?.value == "Success") {
+                  sh 'grep SUCCESSFUL upgrade.log'
+                  stagestatus.Deploy_TEST = "Success"
+                }
+                else {
+                  sh 'grep SUCCESSFUL deploy.log'
+                  stagestatus.Deploy_TEST = "Success"
+                }
+              } catch (Exception err) {
+              stagestatus.Deploy_TEST = "Failure"
+              error "Test deploy/upgrade failed"
+            }
+          }
+        }
+      }
+}
+
+      stage("Rollback") {
+      when { 
+        anyOf {
+             expression { stagestatus.find{ it.key == "Deploy_TEST" }?.value == "Failure" }
+          expression { stagestatus.find{ it.key == "Upgrade" }?.value == "Failure" }
+        }
+      }
+      steps {
+        script {
+          sh "kubectl scale --replicas=0 deployment/wordpress --namespace default"
+          sh "kubectl delete -l name=wp-pv-claim -f dep/wp.yaml --namespace default"
+          sh "kubectl apply -l name=wp-pv-claim -f dep/wp.yaml --namespace default"
+          sh "kubectl rollout undo deployment/wordpress --namespace default"
+          sh "kubectl scale --replicas=1 deployment/wordpress --namespace default"
+          sleep 5
+          timeout(3) {
+            waitUntil {
+              script {
+                def status = sh(returnStdout: true, script: "kubectl get pods --namespace default --selector=tier=frontend --no-headers -o custom-columns=':status.phase'")
+                if ( status =~ "Running") { return true }
+                else { return false }
+              }
+            }
+          }
+          currentBuild.result = 'FAILURE'
+        }
+      
+    }
+  }
+  }
+  
+  post {
+            success {
+                slackSend (color: '#00FF00', message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'")
+            }
+            failure {
+                slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'")
+            }
+    
+  }
+}
+
