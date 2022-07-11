@@ -21,8 +21,8 @@ do
 done
 
 if [[ $flag1 == 0 ]]
- then echo -e "\n=== Test status: SUCCESSFUL ===\n"
- else echo -e "\n=== Test status: FAILED ===\n"
+ then echo -e "\ Test status: SUCCESSFUL \n"
+ else echo -e "\n Test status: FAILED \n"
 fi
 
 ;;
@@ -40,8 +40,8 @@ if (curl -sL http://wordpress.k8s-31.sa | grep -q 'Select a default language')
 fi
 
 if [[ $flag1 == 0 ]]
- then echo -e "\n=== Test status: SUCCESSFUL ===\n"
- else echo -e "\n=== Test status: FAILED ===\n"
+ then echo -e "\n Test status: SUCCESSFUL \n"
+ else echo -e "\n Test status: FAILED \n"
 fi
 
 ;;
@@ -61,8 +61,8 @@ echo -e "\nWordpress version:\n"
 curl -s http://wordpress.k8s-31.sa | grep 'generator' | awk -F'"' '{print $4}'
 
 if [[ $flag1 == 0 ]]
- then echo -e "\n=== Test status: SUCCESSFUL ===\n"
- else echo -e "\n=== Test status: FAILED ===\n"
+ then echo -e "\n Test : SUCCESSFUL \n"
+ else echo -e "\n Test : FAILED \n"
 fi
 
 ;;
