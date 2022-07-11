@@ -4,7 +4,7 @@
 # PLEASE DO NOT EDIT IT DIRECTLY.
 #
 
-ROM php:7.4-apache
+FROM php:7.4-apache
 
 # persistent dependencies
 RUN set -eux; \
